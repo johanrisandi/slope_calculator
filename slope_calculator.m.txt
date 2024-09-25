@@ -1,0 +1,113 @@
+function [x_slope,y_slope,slope,slope_deg]=slope_calculator(file,dx,dy,method);
+%clear all;clc
+% a function to calculate spatial (2D) slope
+% Created by Johan Risandi, Research Center for Oceanography
+% References:
+% -Rahmati O, Ghorbanzadeh O, Teimurian T, Mohammadi F,iefenbacher JP, Falah F, Pirasteh S, Ngo PT, Bui DT. Spatial modeling of snow avalanche using machine learning models and geo-environmental factors: Comparison of effectiveness in two mountain regions. Remote sensing. 2019 Dec 13;11(24):2995.
+% - https://pro.arcgis.com/en/pro-app/latest/tool-reference/spatial-analyst/how-slope-works.htm
+% V1: 060924 a b c methods are added
+% Syntax:
+%      [X,Y,slope] = slope_calculator(file,dx,dy,method);
+%
+%   Inputs:
+%    - file is in three rows consisting x-, y-, and elevation
+%    - dx is the grid size in x-direction
+%    - dy is grid size in y- direction
+%    - methods are 'a' for 4nearest approach, 'b' for 3rd order infinite
+%    approach, 'c' for planar (esri) approach
+%
+%   Outputs
+%    - x_slope is x coordinate of the slope calculated between x- coordinates of two points of elevations
+%    - y_slope is x coordinate of the slope calculated between y- coordinates of two points of elevations
+%    - slope, dimensionless
+%    - slope deg, slope in degree
+% example
+% [X,Y,slope]=slope_calculator('testing.xyz',100,100,'a')
+% 
+file=load(file);
+minx=min(file(:,1));maxx=max(file(:,1));
+miny=min(file(:,2));maxy=max(file(:,2));
+% dx1=10;
+% dy1=10;
+[X,Y]=meshgrid(minx:dx:maxx,miny:dy:maxy);
+Z=griddata(file(:,1),file(:,2),file(:,3),X,Y);
+
+if isequal(method,'a')
+% calculating slope using 2 methods
+% 4nearest approach
+for jj=2:size(Z,1)-1;
+for ii=2:size(Z,2)-1;
+dzdx=(Z(jj,ii-1)-Z(jj,ii+1))/(2*dx);
+dzdy=(Z(jj-1,ii)-Z(jj+1,ii))/(2*dy);
+slope(jj,ii)=sqrt(dzdx^2+dzdy^2);
+end
+end
+slope_deg=atan(slope).*180/pi;
+
+%3rd order infinite approah
+elseif isequal(method,'b')
+for jj=2:size(Z,1)-1;
+for ii=2:size(Z,2)-1;
+%3rd order infinite approah
+dzdx=(abs(Z(jj-1,ii-1)-Z(jj-1,ii+1))+2*abs(Z(jj,ii-1)-Z(jj,ii+1))+abs(Z(jj+1,ii-1)-Z(jj+1,ii+1)))/(8*dx);
+dzdy=(abs(Z(jj-1,ii-1)-Z(jj+1,ii-1))+2*abs(Z(jj+1,ii)-Z(jj-1,ii))+abs(Z(jj-1,ii+1)-Z(jj+1,ii+1)))/(8*dy);
+slope(jj,ii)=sqrt(dzdx^2+dzdy^2);
+end
+end
+slope_deg=atan(slope).*180/pi;
+
+ % esri approach
+ elseif isequal(method,'c')
+for jj=2:size(Z,1)-1;
+for ii=2:size(Z,2)-1;
+    w1=~isnan(Z(jj+1,ii+1))+(2*~isnan(Z(jj,ii+1)))+~isnan(Z(jj-1,ii+1));
+    w2=~isnan(Z(jj+1,ii-1))+(2*~isnan(Z(jj,ii-1)))+~isnan(Z(jj-1,ii-1));
+    w3=~isnan(Z(jj-1,ii-1))+(2*~isnan(Z(jj-1,ii)))+~isnan(Z(jj-1,ii+1));
+    w4=~isnan(Z(jj+1,ii-1))+(2*~isnan(Z(jj+1,ii)))+~isnan(Z(jj+1,ii+1));
+
+dzdx=(((Z(jj+1,ii+1)+(2*Z(jj,ii+1))+Z(jj-1,ii+1))*4/w1)-...
+    ((Z(jj+1,ii-1)+(2*Z(jj,ii-1))+Z(jj-1,ii-1))*4/w2))/(8*dx);
+dzdy=(((Z(jj-1,ii-1)+(2*Z(jj-1,ii))+Z(jj-1,ii+1))*4/w3)-...
+    ((Z(jj+1,ii-1)+(2*Z(jj+1,ii))+Z(jj+1,ii+1))*4/w4))/(8*dy);
+slope(jj,ii)=sqrt(dzdx^2+dzdy^2);
+end
+end
+slope_deg=atan(slope).*180/pi;
+end
+xx=X+(dx/2);
+yy=Y+(dy/2);
+x_slope=xx(1:end-1,1:end-1);
+y_slope=yy(1:end-1,1:end-1);
+
+% methods are 'a'=4nearest, 'b'=3rd order infinite, 'c' =planar (esri)
+if method=='a'
+    tp='/4nearest';
+elseif method=='b'
+    tp="/3rd order";
+else
+    tp="/planar";
+end
+figure
+subplot(1,2,1)
+surf(X,Y,Z);view(2);shading interp
+xlabel('x');ylabel('y')
+c1=colorbar;c1.Label.String = 'depth';
+title(['elevation',tp])
+subplot(1,2,2)
+surf(x_slope,y_slope,slope);view(2);shading interp
+xlabel('x');ylabel('y')
+c1=colorbar;c1.Label.String = 'slope';
+title('slope')
+
+% save the file
+save(['east_bangka_fabbat_utm_nested_d3d_egm_ref.xyz','abc2','-ascii')
+
+
+% % filling the begining of the slope
+% slope1=nan(size(X,1),size(X,2));
+% slope1(1:end-1,1)=slope(:,1);
+% slope1(end,2:end)=slope(end,:);
+
+
+
+
